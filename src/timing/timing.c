@@ -29,3 +29,9 @@ void TIMING_Tick(void)
         div = 0;
     }
 }
+
+uint32_t TIMING_GetTicks(void)
+{
+    return TIMER1->TAR; // free-running down-counter
+}
+
