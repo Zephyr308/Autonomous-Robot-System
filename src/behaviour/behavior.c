@@ -1,37 +1,76 @@
 #include "behavior.h"
-#include "limbs.h"
 #include "head.h"
 #include "tail.h"
+#include "limbs.h"
 #include "lights.h"
+#include "delay.h"
 
-typedef enum {STATE_IDLE, STATE_PLAY, STATE_SHY, STATE_AVOID} RobotState_t;
-static RobotState_t robot_state = STATE_IDLE;
+static behavior_state_t state;
+static uint32_t idle_counter;
 
-void behavior_update(void){
-    uint32_t dist = head_getDistance();
-    uint8_t tail = tail_obstacle();
+/* Thresholds are explicit and tunable */
+#define OBSTACLE_NEAR   7
+#define IDLE_TIMEOUT    3000   // ms
 
-    switch(robot_state){
-        case STATE_IDLE:
-            if(dist<7 || tail) robot_state = STATE_AVOID;
-            else robot_state = STATE_PLAY;
+void BEHAVIOR_Init(void)
+{
+    state = BEHAVIOR_IDLE;
+    idle_counter = 0;
+}
+
+void BEHAVIOR_Update(void)
+{
+    uint8_t head_dist = headSensor_detect();
+    bool tail_hit = TAIL_Detected();
+
+    switch (state)
+    {
+        /* ================= IDLE ================= */
+        case BEHAVIOR_IDLE:
+            LIGHTS_Set(BLUE);
+            STOP();
+
+            idle_counter++;
+
+            if (idle_counter > IDLE_TIMEOUT) {
+                idle_counter = 0;
+                state = BEHAVIOR_PLAY;
+            }
             break;
 
-        case STATE_AVOID:
-            if(dist<7) turn_left(100); // 1 sec
-            else turn_right(100);
-            robot_state = STATE_IDLE;
+        /* ================= PLAY ================= */
+        case BEHAVIOR_PLAY:
+            LIGHTS_Set(GREEN);
+
+            if (head_dist <= OBSTACLE_NEAR && tail_hit) {
+                state = BEHAVIOR_EVADE;
+            }
+            else if (head_dist <= OBSTACLE_NEAR) {
+                state = BEHAVIOR_SHY;
+            }
+            else {
+                walkForward(1);
+            }
             break;
 
-        case STATE_PLAY:
-            move_forward(100); // 1 sec
-            robot_state = STATE_IDLE;
+        /* ================= SHY ================= */
+        case BEHAVIOR_SHY:
+            LIGHTS_Set(RED);
+
+            shy();                  // your existing routine
+            state = BEHAVIOR_IDLE;  // return to calm state
             break;
 
-        case STATE_SHY:
-            move_forward(70);
-            turn_right(180);
-            robot_state = STATE_IDLE;
+        /* ================= EVADE ================= */
+        case BEHAVIOR_EVADE:
+            LIGHTS_Set(RED | BLUE);
+
+            runToHide();            // aggressive evasive action
+            state = BEHAVIOR_IDLE;
+            break;
+
+        default:
+            state = BEHAVIOR_IDLE;
             break;
     }
 }
