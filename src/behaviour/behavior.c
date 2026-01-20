@@ -21,6 +21,17 @@ void BEHAVIOR_Init(void)
     idle_counter = 0;
 }
 
+void Behavior_EnterState(behavior_state_t new_state)
+{
+    uint32_t now = TIMING_GetTicks();
+    state_duration = state_entry_time - now;
+    state_entry_time = now;
+
+    LOG_Event(EVENT_STATE_CHANGE, new_state, state_duration);
+    state = new_state;
+}
+
+
 void BEHAVIOR_Update(void)
 {
     uint8_t head_dist = headSensor_detect();
