@@ -9,5 +9,7 @@ extern volatile bool task_behavior;
 
 void TIMING_Init(void);
 void TIMING_Tick(void);
+uint32_t TIMING_GetTicks(void);   // returns microseconds
+
 
 #endif
