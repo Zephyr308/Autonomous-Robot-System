@@ -1,8 +1,10 @@
-#ifndef TAIL_H__
-#define TAIL_H__
+#ifndef TAIL_H
+#define TAIL_H
+
 #include <stdint.h>
+#include <stdbool.h>
 
 void TAIL_Init(void);
-uint8_t tail_obstacle(void);
+bool TAIL_Detected(void);
 
 #endif
