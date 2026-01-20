@@ -1,6 +1,7 @@
-#include "lights.h"
 #include "TM4C123GH6PM.h"
+#include "lights.h"
 
-void light_set(uint8_t color){
-    GPIO_PORTF_DATA_R = color;
+void LIGHTS_Set(uint8_t mask)
+{
+    GPIOF->DATA = mask;
 }
