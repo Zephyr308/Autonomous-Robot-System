@@ -1,9 +1,13 @@
-#ifndef TIMING_H__
-#define TIMING_H__
+#ifndef TIMING_H
+#define TIMING_H
 
-#include <stdint.h>
+#include <stdbool.h>
 
-void timer_tick_init(void); // Timer2A 10ms tick
-void TIMER2A_Handler(void);
+extern volatile bool task_sense;
+extern volatile bool task_control;
+extern volatile bool task_behavior;
+
+void TIMING_Init(void);
+void TIMING_Tick(void);
 
 #endif
