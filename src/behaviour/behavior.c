@@ -7,6 +7,9 @@
 
 static behavior_state_t state;
 static uint32_t idle_counter;
+static uint32_t state_entry_time;
+static uint32_t state_duration;
+
 
 /* Thresholds are explicit and tunable */
 #define OBSTACLE_NEAR   7
