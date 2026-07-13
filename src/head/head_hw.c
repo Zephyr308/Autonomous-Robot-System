@@ -1,90 +1,177 @@
+/**
+ * @file head_hw.c
+ * @brief Ultrasonic hardware driver.
+ */
+
+
 #include "TM4C123GH6PM.h"
+
 #include "head_hw.h"
 
 
 
-static volatile uint32_t risingEdge;
+/*
+ * Timer0A capture interrupt flag
+ */
 
-static volatile uint32_t fallingEdge;
-
-
-static volatile uint8_t edgeState;
-
-static volatile uint8_t dataReady;
+#define TIMER0_CAPTURE_FLAG   (1U << 2)
 
 
 
-#define WAIT_RISING   0
-#define WAIT_FALLING  1
+/*
+ * Echo edge state
+ */
+
+#define EDGE_RISING     0U
+
+#define EDGE_FALLING    1U
 
 
+
+static volatile uint32_t rising_edge;
+
+static volatile uint32_t falling_edge;
+
+
+static volatile uint8_t edge_state;
+
+
+static volatile uint8_t data_ready;
+
+
+
+/*
+ *---------------------------------------------------------
+ * Initialize hardware
+ *---------------------------------------------------------
+ */
 
 void HEAD_HW_Init(void)
 {
 
     /*
-     * GPIO clocks
+     * Enable clocks:
+     *
+     * GPIOA
+     * GPIOB
+     * TIMER0
      */
 
     SYSCTL->RCGCGPIO |=
-        (1U<<0) | (1U<<1);
+        (1U << 0) |
+        (1U << 1);
 
-
-    /*
-     * Timer0 clock
-     */
 
     SYSCTL->RCGCTIMER |=
-        (1U<<0);
+        (1U << 0);
 
 
 
     /*
+     * Allow clock settling
+     */
+
+    (void)SYSCTL->RCGCTIMER;
+
+
+
+    /*
+     * ------------------------
      * Trigger PA4
+     * ------------------------
      */
 
-    GPIOA->DIR |= HEAD_TRIGGER_PIN;
 
-    GPIOA->DEN |= HEAD_TRIGGER_PIN;
+    GPIOA->DIR |=
+        HEAD_TRIGGER_PIN;
+
+
+    GPIOA->DEN |=
+        HEAD_TRIGGER_PIN;
+
+
+    GPIOA->AFSEL &=
+        ~HEAD_TRIGGER_PIN;
+
+
+    GPIOA->PCTL &=
+        ~(0xF << 16);
+
+
+
+    GPIOA->DATA &=
+        ~HEAD_TRIGGER_PIN;
 
 
 
     /*
+     * ------------------------
      * Echo PB6
+     * ------------------------
      */
 
-    GPIOB->DIR &= ~HEAD_ECHO_PIN;
 
-    GPIOB->DEN |= HEAD_ECHO_PIN;
-
-
-    GPIOB->AFSEL |= HEAD_ECHO_PIN;
+    GPIOB->DIR &=
+        ~HEAD_ECHO_PIN;
 
 
-    GPIOB->PCTL &= ~(0xF<<24);
+    GPIOB->DEN |=
+        HEAD_ECHO_PIN;
 
-    GPIOB->PCTL |= (0x7<<24);
+
+
+    GPIOB->AFSEL |=
+        HEAD_ECHO_PIN;
+
+
+    GPIOB->PCTL &=
+        ~(0xF << 24);
+
+
+    /*
+     * PB6 = T0CCP0
+     */
+
+    GPIOB->PCTL |=
+        (0x7 << 24);
 
 
 
     /*
-     * Timer0A edge capture
+     * ------------------------
+     * Timer0A capture
+     * ------------------------
      */
 
-    TIMER0->CTL &= ~1;
 
+    TIMER0->CTL = 0;
+
+
+
+    /*
+     * 16-bit timer mode
+     */
 
     TIMER0->CFG = 4;
 
 
+
+    /*
+     * Edge time capture
+     *
+     * Count down
+     */
+
     TIMER0->TAMR = 0x17;
 
 
+
     /*
-     * Both edges
+     * Capture both edges
      */
 
-    TIMER0->CTL |= (3<<2);
+    TIMER0->CTL |=
+        (3U << 2);
 
 
 
@@ -92,7 +179,17 @@ void HEAD_HW_Init(void)
      * Enable capture interrupt
      */
 
-    TIMER0->IMR |= (1<<2);
+    TIMER0->IMR |=
+        TIMER0_CAPTURE_FLAG;
+
+
+
+    /*
+     * Clear interrupt
+     */
+
+    TIMER0->ICR =
+        TIMER0_CAPTURE_FLAG;
 
 
 
@@ -104,13 +201,74 @@ void HEAD_HW_Init(void)
 
 
 
+    /*
+     * Start timer
+     */
+
     TIMER0->CTL |= 1;
 
 
-    edgeState = WAIT_RISING;
+
+    edge_state =
+        EDGE_RISING;
+
+
+    data_ready = 0;
 
 }
 
+
+
+/*
+ *---------------------------------------------------------
+ * Trigger ultrasonic burst
+ *---------------------------------------------------------
+ */
+
+void HEAD_HW_Start(void)
+{
+
+    data_ready = 0;
+
+
+
+    GPIOA->DATA &=
+        ~HEAD_TRIGGER_PIN;
+
+
+
+    /*
+     * Approx 10us delay.
+     *
+     * Temporary.
+     * Later replace with timer compare.
+     */
+
+    for(volatile uint32_t i=0;i<80;i++);
+
+
+
+    GPIOA->DATA |=
+        HEAD_TRIGGER_PIN;
+
+
+
+    for(volatile uint32_t i=0;i<80;i++);
+
+
+
+    GPIOA->DATA &=
+        ~HEAD_TRIGGER_PIN;
+
+}
+
+
+
+/*
+ *---------------------------------------------------------
+ * Timer0A Interrupt Handler
+ *---------------------------------------------------------
+ */
 
 void TIMER0A_Handler(void)
 {
@@ -119,78 +277,73 @@ void TIMER0A_Handler(void)
      * Clear interrupt
      */
 
-    TIMER0->ICR = (1<<2);
+    TIMER0->ICR =
+        TIMER0_CAPTURE_FLAG;
 
 
 
-    if(edgeState == WAIT_RISING)
+    if(edge_state == EDGE_RISING)
     {
 
-        risingEdge = TIMER0->TAR;
+        rising_edge =
+            TIMER0->TAR;
 
 
-        edgeState = WAIT_FALLING;
+
+        edge_state =
+            EDGE_FALLING;
 
     }
 
     else
     {
 
-        fallingEdge = TIMER0->TAR;
+        falling_edge =
+            TIMER0->TAR;
 
 
-        dataReady = 1;
+
+        data_ready = 1;
 
 
-        edgeState = WAIT_RISING;
+
+        edge_state =
+            EDGE_RISING;
 
     }
 
 }
 
-void HEAD_HW_Start(void)
-{
-
-    dataReady = 0;
 
 
-    GPIOA->DATA &= ~HEAD_TRIGGER_PIN;
-
-
-    /*
-     * temporary 10us pulse
-     * replace with timer later
-     */
-
-    for(volatile int i=0;i<80;i++);
-
-
-    GPIOA->DATA |= HEAD_TRIGGER_PIN;
-
-
-    for(volatile int i=0;i<80;i++);
-
-
-    GPIOA->DATA &= ~HEAD_TRIGGER_PIN;
-
-}
-
+/*
+ *---------------------------------------------------------
+ * Get measurement
+ *---------------------------------------------------------
+ */
 
 uint8_t HEAD_HW_DataReady(void)
 {
-    return dataReady;
+
+    return data_ready;
+
 }
 
 
 
 uint32_t HEAD_HW_GetEchoTime(void)
 {
-    return fallingEdge - risingEdge;
+
+    return
+        rising_edge - falling_edge;
+
 }
 
 
 
 void HEAD_HW_ClearData(void)
 {
-    dataReady = 0;
+
+    data_ready = 0;
+
 }
