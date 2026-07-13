@@ -1,6 +1,6 @@
 /**
- * @file    head.c
- * @brief   High-level ultrasonic sensor processing.
+ * @file head.c
+ * @brief Ultrasonic sensor processing.
  */
 
 
@@ -9,23 +9,25 @@
 #include "head.h"
 #include "head_hw.h"
 
+#include "timing.h"
 
-
-/*----------------------------------------------------------
- * Sensor configuration
- *---------------------------------------------------------*/
-
-
-#define HEAD_UPDATE_PERIOD_MS     60U
-
-
-#define FILTER_SIZE               5U
 
 
 /*
- * Speed of sound conversion.
+ * Measurement interval.
  *
- * Timer0 clock:
+ * HC-SR04 typical:
+ * 20-60ms
+ */
+
+#define HEAD_SAMPLE_PERIOD_MS     50U
+
+
+
+/*
+ * Sound conversion constants.
+ *
+ * Timer clock:
  *
  * 16MHz
  *
@@ -33,13 +35,33 @@
  *
  */
 
-#define SOUND_MULTIPLIER           5882U
+#define SOUND_SPEED_CONSTANT      5882U
 
 
 
-/*----------------------------------------------------------
+/*
+ * Ignore impossible readings
+ */
+
+#define HEAD_MIN_DISTANCE_CM      2U
+
+#define HEAD_MAX_DISTANCE_CM      400U
+
+
+
+/*
+ * Moving average filter size
+ */
+
+#define FILTER_SIZE              5U
+
+
+
+/*
+ *---------------------------------------------------------
  * Internal variables
- *---------------------------------------------------------*/
+ *---------------------------------------------------------
+ */
 
 
 static uint32_t distance_cm;
@@ -54,53 +76,72 @@ static uint8_t filter_index;
 static uint8_t sensor_ready;
 
 
-
-static uint32_t update_counter;
-
+static uint32_t sample_timer;
 
 
-/*----------------------------------------------------------
- * Convert timer ticks to distance
- *---------------------------------------------------------*/
 
+/*
+ *---------------------------------------------------------
+ * Convert timer ticks to cm
+ *
+ * HC-SR04:
+ *
+ * distance =
+ * echo_time * speed_of_sound / 2
+ *
+ *---------------------------------------------------------
+ */
 
-static uint32_t HEAD_ConvertDistance(uint32_t ticks)
+static uint32_t HEAD_ConvertTicks
+(
+    uint32_t ticks
+)
 {
 
+    uint32_t distance;
+
+
+
     /*
-     * Equivalent to:
+     * Original project formula:
      *
-     * distance =
-     * tick_time *
-     * sound_conversion *
-     * echo_ticks
-     *
+     * tick_time * multiplier
      */
 
-
-    uint64_t value;
-
-
-    value =
-        ((uint64_t)ticks *
-         SOUND_MULTIPLIER);
+    distance =
+        (ticks * SOUND_SPEED_CONSTANT)
+        /
+        1000000U;
 
 
-    value /= 1000000U;
+
+    /*
+     * Divide by 2 because
+     * ultrasonic travels:
+     *
+     * sensor -> object -> sensor
+     */
+
+    distance /= 2U;
 
 
-    return (uint32_t)value;
+
+    return distance;
 
 }
 
 
 
-/*----------------------------------------------------------
- * Simple moving average filter
- *---------------------------------------------------------*/
+/*
+ *---------------------------------------------------------
+ * Moving average filter
+ *---------------------------------------------------------
+ */
 
-
-static uint32_t HEAD_Filter(uint32_t value)
+static uint32_t HEAD_Filter
+(
+    uint32_t value
+)
 {
 
     uint32_t sum = 0;
@@ -110,10 +151,13 @@ static uint32_t HEAD_Filter(uint32_t value)
 
 
 
-    filter_buffer[filter_index] = value;
+    filter_buffer[filter_index] =
+        value;
+
 
 
     filter_index++;
+
 
 
     if(filter_index >= FILTER_SIZE)
@@ -136,15 +180,17 @@ static uint32_t HEAD_Filter(uint32_t value)
 
 
 
-/*----------------------------------------------------------
- * Initialization
- *---------------------------------------------------------*/
-
+/*
+ *---------------------------------------------------------
+ * Initialize
+ *---------------------------------------------------------
+ */
 
 void HEAD_Init(void)
 {
 
     uint8_t i;
+
 
 
     HEAD_HW_Init();
@@ -160,7 +206,7 @@ void HEAD_Init(void)
     sensor_ready = 0;
 
 
-    update_counter = 0;
+    sample_timer = 0;
 
 
 
@@ -173,28 +219,36 @@ void HEAD_Init(void)
 
 
 
-/*----------------------------------------------------------
- * Non blocking update
+/*
+ *---------------------------------------------------------
+ * Scheduler update
  *
- * Called every 10ms
- *---------------------------------------------------------*/
-
+ * Run every 10ms
+ *---------------------------------------------------------
+ */
 
 void HEAD_Update(void)
 {
 
-    update_counter += 10;
+    uint32_t ticks;
+
+
+    uint32_t distance;
 
 
 
     /*
-     * Start new measurement
+     * Request new measurement
      */
 
-    if(update_counter >= HEAD_UPDATE_PERIOD_MS)
+    sample_timer += SYSTEM_TICK_MS;
+
+
+
+    if(sample_timer >= HEAD_SAMPLE_PERIOD_MS)
     {
 
-        update_counter = 0;
+        sample_timer = 0;
 
 
         HEAD_HW_Start();
@@ -210,22 +264,34 @@ void HEAD_Update(void)
     if(HEAD_HW_DataReady())
     {
 
-        uint32_t ticks;
-
-
         ticks =
             HEAD_HW_GetEchoTime();
 
 
 
-        distance_cm =
-            HEAD_Filter(
-                HEAD_ConvertDistance(ticks)
-            );
+        distance =
+            HEAD_ConvertTicks(ticks);
 
 
 
-        sensor_ready = 1;
+        /*
+         * Validate reading
+         */
+
+        if(
+            distance >= HEAD_MIN_DISTANCE_CM &&
+            distance <= HEAD_MAX_DISTANCE_CM
+          )
+        {
+
+            distance_cm =
+                HEAD_Filter(distance);
+
+
+
+            sensor_ready = 1;
+
+        }
 
 
 
@@ -237,19 +303,30 @@ void HEAD_Update(void)
 
 
 
-/*----------------------------------------------------------
- * Get distance
- *---------------------------------------------------------*/
-
+/*
+ *---------------------------------------------------------
+ * Return distance
+ *---------------------------------------------------------
+ */
 
 uint32_t HEAD_GetDistance(void)
 {
+
     return distance_cm;
+
 }
 
 
 
+/*
+ *---------------------------------------------------------
+ * Sensor status
+ *---------------------------------------------------------
+ */
+
 uint8_t HEAD_IsReady(void)
 {
+
     return sensor_ready;
+
 }
