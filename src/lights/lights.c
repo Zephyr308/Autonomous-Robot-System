@@ -1,118 +1,250 @@
 /**
- * @file    lights.c
- * @brief   LED control driver for TM4C123GH6PM.
- *
- * This module controls the onboard RGB LEDs connected to:
- *
- * PF1 - Red LED
- * PF2 - Blue LED
- * PF3 - Green LED
- *
+ * @file lights.c
+ * @brief RGB LED driver.
  */
 
+
 #include "TM4C123GH6PM.h"
+
 #include "lights.h"
 
 
-/*----------------------------------------------------------
- * LED Pin Definitions
- *---------------------------------------------------------*/
 
-#define RED_LED     (1U << 1)    /* PF1 */
-#define BLUE_LED    (1U << 2)    /* PF2 */
-#define GREEN_LED   (1U << 3)    /* PF3 */
+/*
+ * Current LED state
+ */
 
-#define LED_MASK    (RED_LED | BLUE_LED | GREEN_LED)
+static uint8_t led_state;
 
 
-/*----------------------------------------------------------
- * Initialize LEDs
- *---------------------------------------------------------*/
+
+/*
+ *---------------------------------------------------------
+ * Initialize GPIO Port F LEDs
+ *---------------------------------------------------------
+ */
 
 void LIGHTS_Init(void)
 {
-    /* Enable Port F clock */
-    SYSCTL->RCGCGPIO |= (1U << 5);
 
-    /* Allow GPIO clock to stabilize */
-    (void)SYSCTL->RCGCGPIO;
+    /*
+     * Enable Port F clock
+     */
+
+    SYSCTL->RCGCGPIO |=
+        (1U << 5);
+
 
 
     /*
-     * Unlock Port F
-     * Required for PF0 and PF4.
-     * Kept here for compatibility with LaunchPad Port F setup.
+     * Wait for peripheral ready
      */
-    GPIOF->LOCK = 0x4C4F434B;
-    GPIOF->CR |= 0xFF;
+
+    (void)SYSCTL->RCGCGPIO;
 
 
-    /* Configure PF1-PF3 as GPIO */
-    GPIOF->AFSEL &= ~LED_MASK;
-    GPIOF->PCTL &= ~0x0000FFF0;
-    GPIOF->AMSEL &= ~LED_MASK;
+
+    /*
+     * Unlock PF1-3
+     *
+     * Original assembly unlocked
+     * entire Port F.
+     */
+
+    GPIOF->LOCK =
+        0x4C4F434B;
 
 
-    /* Configure LED pins as outputs */
-    GPIOF->DIR |= LED_MASK;
+
+    GPIOF->CR |=
+        LED_ALL;
 
 
-    /* Enable digital function */
-    GPIOF->DEN |= LED_MASK;
+
+    /*
+     * Configure output
+     */
+
+    GPIOF->DIR |=
+        LED_ALL;
 
 
-    /* Turn LEDs OFF initially */
-    GPIOF->DATA &= ~LED_MASK;
+
+    /*
+     * Disable alternate function
+     */
+
+    GPIOF->AFSEL &=
+        ~LED_ALL;
+
+
+
+    /*
+     * Enable digital
+     */
+
+    GPIOF->DEN |=
+        LED_ALL;
+
+
+
+    /*
+     * Start OFF
+     */
+
+    led_state = 0;
+
+
+    LIGHTS_Off();
+
 }
 
 
-/*----------------------------------------------------------
- * LED Control Functions
- *---------------------------------------------------------*/
 
-/**
- * @brief Turn on selected LEDs.
- *
- * @param led LED mask:
- *            RED_LED, BLUE_LED, GREEN_LED
+/*
+ *---------------------------------------------------------
+ * Write LED state
+ *---------------------------------------------------------
  */
-void LIGHTS_On(uint8_t led)
+
+static void LIGHTS_Write
+(
+    uint8_t value
+)
 {
-    GPIOF->DATA |= (led & LED_MASK);
+
+    led_state =
+        value &
+        LED_ALL;
+
+
+    GPIOF->DATA =
+        (GPIOF->DATA &
+        ~LED_ALL)
+        |
+        led_state;
+
 }
 
 
-/**
- * @brief Turn off selected LEDs.
- *
- * @param led LED mask:
- *            RED_LED, BLUE_LED, GREEN_LED
+
+/*
+ *---------------------------------------------------------
+ * Turn LEDs on
+ *---------------------------------------------------------
  */
-void LIGHTS_Off(uint8_t led)
+
+void LIGHTS_On
+(
+    uint8_t color
+)
 {
-    GPIOF->DATA &= ~(led & LED_MASK);
+
+    LIGHTS_Write(
+        led_state | color
+    );
+
 }
 
 
-/**
- * @brief Toggle selected LEDs.
- *
- * @param led LED mask:
- *            RED_LED, BLUE_LED, GREEN_LED
+
+/*
+ *---------------------------------------------------------
+ * Turn LEDs off
+ *---------------------------------------------------------
  */
-void LIGHTS_Toggle(uint8_t led)
+
+void LIGHTS_Off(void)
 {
-    GPIOF->DATA ^= (led & LED_MASK);
+
+    LIGHTS_Write(0);
+
 }
 
 
-/**
- * @brief Set RGB LED state directly.
- *
- * @param color LED mask combination.
+
+/*
+ *---------------------------------------------------------
+ * Toggle LEDs
+ *---------------------------------------------------------
  */
-void LIGHTS_Set(uint8_t color)
+
+void LIGHTS_Toggle
+(
+    uint8_t color
+)
 {
-    GPIOF->DATA = (GPIOF->DATA & ~LED_MASK) |
-                  (color & LED_MASK);
+
+    LIGHTS_Write(
+        led_state ^ color
+    );
+
+}
+
+
+
+/*
+ *---------------------------------------------------------
+ * RGB control
+ *---------------------------------------------------------
+ */
+
+void LIGHTS_RGB
+(
+    uint8_t red,
+    uint8_t green,
+    uint8_t blue
+)
+{
+
+    uint8_t value = 0;
+
+
+
+    if(red)
+    {
+        value |= LED_RED;
+    }
+
+
+    if(green)
+    {
+        value |= LED_GREEN;
+    }
+
+
+    if(blue)
+    {
+        value |= LED_BLUE;
+    }
+
+
+
+    LIGHTS_Write(value);
+
+}
+
+
+
+/*
+ *---------------------------------------------------------
+ * Scheduler task
+ *
+ * Currently unused.
+ *
+ * Future:
+ * - breathing effect
+ * - status indication
+ * - sensor feedback
+ *
+ *---------------------------------------------------------
+ */
+
+void LIGHTS_Update(void)
+{
+
+    /*
+     * Reserved.
+     */
+
 }
