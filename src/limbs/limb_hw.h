@@ -1,88 +1,85 @@
 /**
- * @file    limb_hw.h
- * @brief   Low-level limb motor hardware driver.
+ * @file limb_hw.h
+ * @brief Low level DC motor hardware driver.
  *
- * This module controls the motor hardware directly.
- *
- * Hardware:
- *   PE2 - Motor left control
- *   PE3 - Motor right control
- *
- * Speed control is handled using PWM.
+ * Controls motor direction GPIO only.
  */
+
 
 #ifndef LIMB_HW_H_
 #define LIMB_HW_H_
 
+
 #include <stdint.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 
-/*----------------------------------------------------------
- * Motor speed range
- *---------------------------------------------------------*/
+/*
+ * Motor pins
+ */
 
-#define LIMB_SPEED_STOP       0U
-#define LIMB_SPEED_MAX        100U
+#define LIMB_LEFT_PIN      (1U << 2)   /* PE2 */
+
+#define LIMB_RIGHT_PIN     (1U << 3)   /* PE3 */
 
 
-/*----------------------------------------------------------
- * Hardware API
- *---------------------------------------------------------*/
+
+/*
+ * Motor output states
+ */
+
+#define LIMB_STOP_VALUE    0x00
+
+#define LIMB_LEFT_VALUE    LIMB_LEFT_PIN
+
+#define LIMB_RIGHT_VALUE   LIMB_RIGHT_PIN
+
+#define LIMB_FORWARD_VALUE (LIMB_LEFT_PIN | LIMB_RIGHT_PIN)
+
 
 
 /**
- * @brief Initialize limb motor hardware.
- *
- * Configures GPIO and PWM peripherals.
+ * @brief Initialize motor hardware.
  */
 void LIMB_HW_Init(void);
 
 
+
 /**
- * @brief Move forward.
- *
- * @param speed Motor speed percentage (0-100).
+ * @brief Turn robot left.
  */
-void LIMB_HW_Forward(uint8_t speed);
+void LIMB_HW_Left(void);
+
 
 
 /**
- * @brief Move backward.
- *
- * @param speed Motor speed percentage (0-100).
+ * @brief Turn robot right.
  */
-void LIMB_HW_Backward(uint8_t speed);
+void LIMB_HW_Right(void);
+
 
 
 /**
- * @brief Turn left.
- *
- * @param speed Motor speed percentage (0-100).
+ * @brief Drive forward.
  */
-void LIMB_HW_Left(uint8_t speed);
+void LIMB_HW_Forward(void);
 
-
-/**
- * @brief Turn right.
- *
- * @param speed Motor speed percentage (0-100).
- */
-void LIMB_HW_Right(uint8_t speed);
 
 
 /**
- * @brief Stop motors immediately.
+ * @brief Stop motors.
  */
 void LIMB_HW_Stop(void);
 
 
-#ifdef __cplusplus
-}
-#endif
+
+/**
+ * @brief Direct motor output.
+ *
+ * Useful for future PWM/speed control.
+ */
+void LIMB_HW_Write(uint8_t value);
+
 
 
 #endif /* LIMB_HW_H_ */
