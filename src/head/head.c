@@ -1,57 +1,255 @@
-#include "TM4C123GH6PM.h"
+/**
+ * @file    head.c
+ * @brief   High-level ultrasonic sensor processing.
+ */
+
+
+#include <stdint.h>
+
 #include "head.h"
+#include "head_hw.h"
 
-volatile uint32_t head_distance = 0;
 
-/* Timer0 Capture Interrupt Handler */
-void TIMER0A_Handler(void){
-    static uint32_t rising_edge = 0;
-    if(TIMER0->RIS & 0x04){ // Capture event
-        uint32_t tar = TIMER0->TAR;
-        if((GPIOB->DATA & (1<<6))){ // Rising edge
-            rising_edge = tar;
-        } else { // Falling edge
-            uint32_t pulse = tar - rising_edge;
-            head_distance = (uint32_t)(pulse * 62.5e-9 * 5882); // cm
-        }
-        TIMER0->ICR = 0x04;
+
+/*----------------------------------------------------------
+ * Sensor configuration
+ *---------------------------------------------------------*/
+
+
+#define HEAD_UPDATE_PERIOD_MS     60U
+
+
+#define FILTER_SIZE               5U
+
+
+/*
+ * Speed of sound conversion.
+ *
+ * Timer0 clock:
+ *
+ * 16MHz
+ *
+ * 1 tick = 62.5ns
+ *
+ */
+
+#define SOUND_MULTIPLIER           5882U
+
+
+
+/*----------------------------------------------------------
+ * Internal variables
+ *---------------------------------------------------------*/
+
+
+static uint32_t distance_cm;
+
+
+static uint32_t filter_buffer[FILTER_SIZE];
+
+
+static uint8_t filter_index;
+
+
+static uint8_t sensor_ready;
+
+
+
+static uint32_t update_counter;
+
+
+
+/*----------------------------------------------------------
+ * Convert timer ticks to distance
+ *---------------------------------------------------------*/
+
+
+static uint32_t HEAD_ConvertDistance(uint32_t ticks)
+{
+
+    /*
+     * Equivalent to:
+     *
+     * distance =
+     * tick_time *
+     * sound_conversion *
+     * echo_ticks
+     *
+     */
+
+
+    uint64_t value;
+
+
+    value =
+        ((uint64_t)ticks *
+         SOUND_MULTIPLIER);
+
+
+    value /= 1000000U;
+
+
+    return (uint32_t)value;
+
+}
+
+
+
+/*----------------------------------------------------------
+ * Simple moving average filter
+ *---------------------------------------------------------*/
+
+
+static uint32_t HEAD_Filter(uint32_t value)
+{
+
+    uint32_t sum = 0;
+
+
+    uint8_t i;
+
+
+
+    filter_buffer[filter_index] = value;
+
+
+    filter_index++;
+
+
+    if(filter_index >= FILTER_SIZE)
+    {
+        filter_index = 0;
     }
+
+
+
+    for(i=0;i<FILTER_SIZE;i++)
+    {
+        sum += filter_buffer[i];
+    }
+
+
+
+    return sum / FILTER_SIZE;
+
 }
 
-void HEAD_Init(void){
-    /* Setup GPIOA Trigger pin */
-    GPIO_PORTA_DIR_R |= (1U<<4);
-    GPIO_PORTA_DEN_R |= (1U<<4);
 
-    /* Setup GPIOB Echo pin and Timer0 capture */
-    SYSCTL->RCGCTIMER |= 1;
-    SYSCTL->RCGCGPIO |= 2;
-    GPIOB->DIR &= ~(1<<6);
-    GPIOB->DEN |= (1<<6);
-    GPIOB->AFSEL |= (1<<6);
-    GPIOB->PCTL &= ~0x0F000000;
-    GPIOB->PCTL |= 0x07000000;
 
-    TIMER0->CTL = 0;
-    TIMER0->CFG = 4;
-    TIMER0->TAMR = 0x17;
-    TIMER0->CTL |= 0x0C;
-    TIMER0->IMR |= 0x04;
-    NVIC->ISER[0] |= (1<<19); // Enable Timer0A interrupt
-    TIMER0->CTL |= 1;
+/*----------------------------------------------------------
+ * Initialization
+ *---------------------------------------------------------*/
+
+
+void HEAD_Init(void)
+{
+
+    uint8_t i;
+
+
+    HEAD_HW_Init();
+
+
+
+    distance_cm = 0;
+
+
+    filter_index = 0;
+
+
+    sensor_ready = 0;
+
+
+    update_counter = 0;
+
+
+
+    for(i=0;i<FILTER_SIZE;i++)
+    {
+        filter_buffer[i] = 0;
+    }
+
 }
 
-/**@brief Send trigger pulse */
-void head_trigger(void){
-    GPIOA->DATA &= ~(1<<4);
-    for(volatile int i=0;i<12;i++);
-    GPIOA->DATA |= (1<<4);
-    for(volatile int i=0;i<12;i++);
-    GPIOA->DATA &= ~(1<<4);
+
+
+/*----------------------------------------------------------
+ * Non blocking update
+ *
+ * Called every 10ms
+ *---------------------------------------------------------*/
+
+
+void HEAD_Update(void)
+{
+
+    update_counter += 10;
+
+
+
+    /*
+     * Start new measurement
+     */
+
+    if(update_counter >= HEAD_UPDATE_PERIOD_MS)
+    {
+
+        update_counter = 0;
+
+
+        HEAD_HW_Start();
+
+    }
+
+
+
+    /*
+     * Check interrupt result
+     */
+
+    if(HEAD_HW_DataReady())
+    {
+
+        uint32_t ticks;
+
+
+        ticks =
+            HEAD_HW_GetEchoTime();
+
+
+
+        distance_cm =
+            HEAD_Filter(
+                HEAD_ConvertDistance(ticks)
+            );
+
+
+
+        sensor_ready = 1;
+
+
+
+        HEAD_HW_ClearData();
+
+    }
+
 }
 
-/**@brief Return last measured distance */
-uint32_t head_getDistance(void){
-    head_trigger(); // Non-blocking, measurement updated in ISR
-    return head_distance;
+
+
+/*----------------------------------------------------------
+ * Get distance
+ *---------------------------------------------------------*/
+
+
+uint32_t HEAD_GetDistance(void)
+{
+    return distance_cm;
+}
+
+
+
+uint8_t HEAD_IsReady(void)
+{
+    return sensor_ready;
 }
