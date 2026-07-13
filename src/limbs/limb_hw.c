@@ -1,165 +1,169 @@
 /**
- * @file    limb_hw.c
- * @brief   Low-level limb motor hardware control.
+ * @file limb_hw.c
+ * @brief DC motor hardware implementation.
  */
 
 
 #include "TM4C123GH6PM.h"
+
 #include "limb_hw.h"
 
 
-/*----------------------------------------------------------
- * GPIO configuration
- *---------------------------------------------------------*/
 
-#define MOTOR_LEFT_PIN       (1U << 2)   /* PE2 */
-#define MOTOR_RIGHT_PIN      (1U << 3)   /* PE3 */
-
-#define MOTOR_PIN_MASK       \
-        (MOTOR_LEFT_PIN | MOTOR_RIGHT_PIN)
-
-
-
-/*----------------------------------------------------------
- * Internal functions
- *---------------------------------------------------------*/
-
-
-static void LIMB_HW_SetPWM(uint8_t speed)
-{
-    /*
-     * Future PWM implementation.
-     *
-     * speed:
-     * 0   = stop
-     * 100 = full speed
-     */
-
-    (void)speed;
-}
-
-
-
-/*----------------------------------------------------------
- * Initialization
- *---------------------------------------------------------*/
-
+/*
+ *---------------------------------------------------------
+ * Initialize GPIO Port E motor pins
+ *---------------------------------------------------------
+ */
 
 void LIMB_HW_Init(void)
 {
+
     /*
      * Enable Port E clock
      */
-    SYSCTL->RCGCGPIO |= (1U << 4);
+
+    SYSCTL->RCGCGPIO |=
+        (1U << 4);
+
+
 
     /*
-     * Allow clock stabilization
+     * Small delay for clock stabilization
      */
+
     (void)SYSCTL->RCGCGPIO;
 
 
 
     /*
-     * Configure PE2 and PE3 as GPIO
+     * Disable alternate function
      */
 
-    GPIOE->AFSEL &= ~MOTOR_PIN_MASK;
+    GPIOE->AFSEL &=
+        ~(LIMB_LEFT_PIN |
+          LIMB_RIGHT_PIN);
 
-    GPIOE->PCTL &= ~(0xFF << 8);
-
-    GPIOE->AMSEL &= ~MOTOR_PIN_MASK;
 
 
     /*
-     * Output pins
+     * Configure as GPIO
      */
 
-    GPIOE->DIR |= MOTOR_PIN_MASK;
+    GPIOE->PCTL &=
+        ~0x0000FF00;
+
 
 
     /*
-     * Increase drive strength
+     * Output direction
      */
 
-    GPIOE->DR8R |= MOTOR_PIN_MASK;
+    GPIOE->DIR |=
+        (LIMB_LEFT_PIN |
+         LIMB_RIGHT_PIN);
+
 
 
     /*
-     * Digital enable
+     * Enable digital function
      */
 
-    GPIOE->DEN |= MOTOR_PIN_MASK;
+    GPIOE->DEN |=
+        (LIMB_LEFT_PIN |
+         LIMB_RIGHT_PIN);
+
 
 
     /*
-     * Initial safe state
+     * 8mA drive strength
+     *
+     * Same as original assembly.
+     */
+
+    GPIOE->DR8R |=
+        (LIMB_LEFT_PIN |
+         LIMB_RIGHT_PIN);
+
+
+
+    /*
+     * Start stopped.
      */
 
     LIMB_HW_Stop();
+
 }
 
 
 
-/*----------------------------------------------------------
+/*
+ *---------------------------------------------------------
+ * Write raw motor output
+ *---------------------------------------------------------
+ */
+
+void LIMB_HW_Write(uint8_t value)
+{
+
+    GPIOE->DATA =
+        (GPIOE->DATA &
+        ~(LIMB_LEFT_PIN |
+          LIMB_RIGHT_PIN))
+        |
+        (value &
+        (LIMB_LEFT_PIN |
+         LIMB_RIGHT_PIN));
+
+}
+
+
+
+/*
+ *---------------------------------------------------------
  * Movement commands
- *---------------------------------------------------------*/
+ *---------------------------------------------------------
+ */
 
 
-void LIMB_HW_Forward(uint8_t speed)
+void LIMB_HW_Left(void)
 {
-    GPIOE->DATA =
-        (GPIOE->DATA & ~MOTOR_PIN_MASK)
-        | MOTOR_PIN_MASK;
 
-    LIMB_HW_SetPWM(speed);
+    LIMB_HW_Write(
+        LIMB_LEFT_VALUE
+    );
+
 }
 
 
 
-void LIMB_HW_Backward(uint8_t speed)
+void LIMB_HW_Right(void)
 {
-    /*
-     * Direction depends on motor wiring.
-     * Placeholder until H-bridge logic is defined.
-     */
 
-    GPIOE->DATA =
-        (GPIOE->DATA & ~MOTOR_PIN_MASK)
-        | MOTOR_PIN_MASK;
+    LIMB_HW_Write(
+        LIMB_RIGHT_VALUE
+    );
 
-
-    LIMB_HW_SetPWM(speed);
 }
 
 
 
-void LIMB_HW_Left(uint8_t speed)
+void LIMB_HW_Forward(void)
 {
-    GPIOE->DATA =
-        (GPIOE->DATA & ~MOTOR_PIN_MASK)
-        | MOTOR_LEFT_PIN;
 
+    LIMB_HW_Write(
+        LIMB_FORWARD_VALUE
+    );
 
-    LIMB_HW_SetPWM(speed);
-}
-
-
-
-void LIMB_HW_Right(uint8_t speed)
-{
-    GPIOE->DATA =
-        (GPIOE->DATA & ~MOTOR_PIN_MASK)
-        | MOTOR_RIGHT_PIN;
-
-
-    LIMB_HW_SetPWM(speed);
 }
 
 
 
 void LIMB_HW_Stop(void)
 {
-    GPIOE->DATA &= ~MOTOR_PIN_MASK;
 
-    LIMB_HW_SetPWM(0);
+    LIMB_HW_Write(
+        LIMB_STOP_VALUE
+    );
+
 }
