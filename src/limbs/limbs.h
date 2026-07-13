@@ -1,29 +1,28 @@
 /**
- * @file    limbs.h
- * @brief   High-level limb movement controller.
+ * @file limbs.h
+ * @brief High level robot movement control.
  */
+
 
 #ifndef LIMBS_H_
 #define LIMBS_H_
 
+
 #include <stdint.h>
+
 
 
 typedef enum
 {
-    LIMB_STOP = 0,
 
-    LIMB_FORWARD,
+    LIMB_CMD_STOP = 0,
 
-    LIMB_BACKWARD,
+    LIMB_CMD_FORWARD,
 
-    LIMB_LEFT,
+    LIMB_CMD_LEFT,
 
-    LIMB_RIGHT,
+    LIMB_CMD_RIGHT
 
-    LIMB_SPIN_LEFT,
-
-    LIMB_SPIN_RIGHT
 
 } LimbCommand;
 
@@ -37,43 +36,55 @@ void LIMBS_Init(void);
 
 
 /**
- * @brief Update limb controller.
+ * @brief Scheduler update.
  *
- * Must be called every 10ms.
+ * Call every 10ms.
  */
 void LIMBS_Update(void);
 
 
 
 /**
- * @brief Start a movement command.
+ * @brief Set continuous movement.
  *
- * @param command Movement type.
- * @param speed Speed percentage.
- * @param time_ms Duration in milliseconds.
+ * @param command movement type
  */
 void LIMBS_Command
 (
-    LimbCommand command,
-    uint8_t speed,
-    uint32_t time_ms
+    LimbCommand command
 );
 
 
 
 /**
- * @brief Immediately stop movement.
+ * @brief Move for a specific time.
+ *
+ * After duration expires,
+ * robot stops automatically.
+ *
+ * @param command movement
+ * @param duration_ms time
+ */
+void LIMBS_CommandTimed
+(
+    LimbCommand command,
+    uint32_t duration_ms
+);
+
+
+
+/**
+ * @brief Stop immediately.
  */
 void LIMBS_Stop(void);
 
 
 
 /**
- * @brief Check if current movement is finished.
- *
- * @return 1 if finished.
+ * @brief Check current command.
  */
-uint8_t LIMBS_IsFinished(void);
+LimbCommand LIMBS_GetCommand(void);
+
 
 
 #endif
