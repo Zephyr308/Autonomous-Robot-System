@@ -1,4 +1,15 @@
 ;************************************************************
+;  tail.s
+;
+;  Legacy ARM Assembly implementation of the rear IR sensor
+;  driver.
+;
+;  This file is retained for historical/reference purposes.
+;  The active implementation is now in tail.c.
+;
+;************************************************************
+
+;************************************************************
 ; @file    tail.s
 ; @brief   Rear IR sensor driver (PA5)
 ;
