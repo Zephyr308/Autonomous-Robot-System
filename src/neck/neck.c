@@ -1,133 +1,310 @@
 /**
  * @file neck.c
- * @brief PWM servo (neck) control for TM4C123GH6PM
+ * @brief PWM servo neck controller.
  */
 
+
 #include "TM4C123GH6PM.h"
-#include "delay.h"
 
-/*----------------------------------------------------------
- * PWM Configuration
- *---------------------------------------------------------*/
-#define PWM_CLOCK_FREQ      16000000U      /* 16 MHz */
-#define SERVO_PWM_FREQ      50U            /* 50 Hz */
+#include "neck.h"
 
-#define PWM_LOAD_VALUE      (PWM_CLOCK_FREQ / SERVO_PWM_FREQ)
 
-/* Servo position limits */
-#define SERVO_LEFT_LIMIT    319000U
-#define SERVO_RIGHT_LIMIT   260000U
 
-/* Sweep parameters */
-#define SERVO_STEP          6400U
-#define LEFT_DELAY_MS       1200U
-#define RIGHT_DELAY_MS      1000U
+/*
+ * PWM configuration
+ *
+ * PWM1 Generator 3
+ * M1PWM7
+ *
+ * PF3
+ */
 
-/*----------------------------------------------------------
- * Internal Helper
- *---------------------------------------------------------*/
-static void servo_set_position(uint32_t position)
+
+#define NECK_PWM_LOAD     320000U
+
+
+
+/*
+ * Servo update speed.
+ *
+ * Smaller:
+ * faster movement
+ *
+ */
+
+#define NECK_STEP         3000U
+
+
+
+/*
+ * Internal position
+ */
+
+static uint32_t current_position;
+
+
+static uint32_t target_position;
+
+
+
+/*
+ *---------------------------------------------------------
+ * Initialize PWM servo
+ *---------------------------------------------------------
+ */
+
+void NECK_Init(void)
 {
-    PWM1->_3_CMPA = position;
-}
-
-/*----------------------------------------------------------
- * Initialization
- *---------------------------------------------------------*/
-void neck_init(void)
-{
-    SYSCTL->RCGCPWM  |= (1U << 1);      /* Enable PWM1 */
-    SYSCTL->RCGCGPIO |= (1U << 5);      /* Enable Port F */
-
-    SYSCTL->RCC &= ~(1U << 20);         /* PWM clock = System clock */
-
-    volatile uint32_t delay = SYSCTL->RCGCGPIO;
-    (void)delay;
-
-    /* Configure PF3 as M1PWM7 */
-    GPIOF->AFSEL |= (1U << 3);
-
-    GPIOF->PCTL &= ~(0xFU << 12);
-    GPIOF->PCTL |=  (0x5U << 12);
-
-    GPIOF->DEN |= (1U << 3);
-
-    /* Configure PWM Generator 3 */
-    PWM1->_3_CTL = 0;
 
     /*
-     * Set output HIGH on reload
-     * Clear output when counter reaches CMPA
+     * Enable PWM1
      */
-    PWM1->_3_GENB = 0x8C;
 
-    PWM1->_3_LOAD = PWM_LOAD_VALUE;
-    PWM1->_3_CMPA = SERVO_LEFT_LIMIT;
+    SYSCTL->RCGCPWM |=
+        (1U << 1);
+
+
+
+    /*
+     * Enable Port F
+     */
+
+    SYSCTL->RCGCGPIO |=
+        (1U << 5);
+
+
+
+    (void)SYSCTL->RCGCPWM;
+
+
+
+    /*
+     * PWM clock = system clock
+     */
+
+    SYSCTL->RCC &=
+        ~(1U << 20);
+
+
+
+    /*
+     * PF3 alternate function
+     */
+
+    GPIOF->AFSEL |=
+        (1U << 3);
+
+
+
+    GPIOF->PCTL &=
+        ~(0xF << 12);
+
+
+
+    /*
+     * PF3 = M1PWM7
+     */
+
+    GPIOF->PCTL |=
+        (5U << 12);
+
+
+
+    GPIOF->DEN |=
+        (1U << 3);
+
+
+
+    /*
+     * Disable PWM generator
+     */
+
+    PWM1->_3_CTL = 0;
+
+
+
+    /*
+     * PWM output configuration
+     */
+
+    PWM1->_3_GENB =
+        0x0000008C;
+
+
+
+    /*
+     * 50Hz servo frequency
+     */
+
+    PWM1->_3_LOAD =
+        NECK_PWM_LOAD;
+
+
+
+    /*
+     * Start center
+     */
+
+    current_position =
+        NECK_CENTER_POSITION;
+
+
+    target_position =
+        NECK_CENTER_POSITION;
+
+
+
+    PWM1->_3_CMPA =
+        current_position;
+
+
 
     PWM1->_3_CTL = 1;
 
-    PWM1->ENABLE |= (1U << 7);
+
+
+    PWM1->ENABLE |=
+        (1U << 7);
+
 }
 
-/*----------------------------------------------------------
- * Set Servo Position
- *---------------------------------------------------------*/
-void neck_turn(uint32_t position)
+
+
+/*
+ *---------------------------------------------------------
+ * Set target
+ *---------------------------------------------------------
+ */
+
+void NECK_SetPosition
+(
+    uint32_t position
+)
 {
-    servo_set_position(position);
-}
 
-/*----------------------------------------------------------
- * Generic Sweep Function
- *---------------------------------------------------------*/
-static void servo_sweep(uint32_t start,
-                        uint32_t end,
-                        uint32_t step,
-                        uint32_t delay_ms)
-{
-    PWM1->ENABLE |= (1U << 7);
+    /*
+     * Limit command
+     */
 
-    if (start > end)
+    if(position > NECK_LEFT_POSITION)
     {
-        for (uint32_t pos = start; pos >= end; pos -= step)
-        {
-            servo_set_position(pos);
-            delayMs(delay_ms);
-
-            if (pos - step < end)
-                break;
-        }
-    }
-    else
-    {
-        for (uint32_t pos = start; pos <= end; pos += step)
-        {
-            servo_set_position(pos);
-            delayMs(delay_ms);
-
-            if (pos + step > end)
-                break;
-        }
+        position = NECK_LEFT_POSITION;
     }
 
-    PWM1->ENABLE &= ~(1U << 7);
+
+    if(position < NECK_RIGHT_POSITION)
+    {
+        position = NECK_RIGHT_POSITION;
+    }
+
+
+
+    target_position =
+        position;
+
 }
 
-/*----------------------------------------------------------
- * Public Functions
- *---------------------------------------------------------*/
-void check_left(void)
+
+
+/*
+ *---------------------------------------------------------
+ * Scheduler update
+ *
+ * Servo moves gradually
+ *---------------------------------------------------------
+ */
+
+void NECK_Update(void)
 {
-    servo_sweep(SERVO_LEFT_LIMIT,
-                SERVO_RIGHT_LIMIT,
-                SERVO_STEP,
-                LEFT_DELAY_MS);
+
+    if(current_position < target_position)
+    {
+
+        current_position +=
+            NECK_STEP;
+
+
+        if(current_position > target_position)
+        {
+            current_position =
+                target_position;
+        }
+
+    }
+
+
+    else if(current_position > target_position)
+    {
+
+        current_position -=
+            NECK_STEP;
+
+
+        if(current_position < target_position)
+        {
+            current_position =
+                target_position;
+        }
+
+    }
+
+
+
+    PWM1->_3_CMPA =
+        current_position;
+
 }
 
-void check_right(void)
+
+
+/*
+ *---------------------------------------------------------
+ * Convenience commands
+ *---------------------------------------------------------
+ */
+
+void NECK_Left(void)
 {
-    servo_sweep(SERVO_RIGHT_LIMIT,
-                SERVO_LEFT_LIMIT,
-                SERVO_STEP,
-                RIGHT_DELAY_MS);
+
+    NECK_SetPosition(
+        NECK_LEFT_POSITION
+    );
+
+}
+
+
+
+void NECK_Right(void)
+{
+
+    NECK_SetPosition(
+        NECK_RIGHT_POSITION
+    );
+
+}
+
+
+
+void NECK_Center(void)
+{
+
+    NECK_SetPosition(
+        NECK_CENTER_POSITION
+    );
+
+}
+
+
+
+/*
+ *---------------------------------------------------------
+ * Get current position
+ *---------------------------------------------------------
+ */
+
+uint32_t NECK_GetPosition(void)
+{
+
+    return current_position;
+
 }
