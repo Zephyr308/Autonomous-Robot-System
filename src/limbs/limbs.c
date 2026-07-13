@@ -1,256 +1,239 @@
 /**
- * @file    limbs.c
- * @brief   Limb movement state machine.
+ * @file limbs.c
+ * @brief High level non-blocking movement controller.
  */
 
 
 #include "limbs.h"
+
 #include "limb_hw.h"
 
-
-
-#define LIMB_TICK_MS     10U
-
-
-
-typedef struct
-{
-    LimbCommand command;
-
-    uint8_t target_speed;
-
-    uint8_t current_speed;
-
-    uint32_t duration;
-
-    uint32_t elapsed;
-
-} LimbState;
-
-
-
-static LimbState limb;
+#include "timing.h"
 
 
 
 /*
- * Smooth acceleration.
+ * Current movement command
  */
-static void LIMBS_UpdateSpeed(void)
+
+static LimbCommand current_command;
+
+
+
+/*
+ * Timed movement control
+ */
+
+static uint8_t timed_mode;
+
+
+static uint32_t command_start;
+
+
+static uint32_t command_duration;
+
+
+
+/*
+ *---------------------------------------------------------
+ * Initialize
+ *---------------------------------------------------------
+ */
+
+void LIMBS_Init(void)
 {
-    if(limb.current_speed < limb.target_speed)
-    {
-        limb.current_speed++;
-    }
-    else if(limb.current_speed > limb.target_speed)
-    {
-        limb.current_speed--;
-    }
+
+    LIMB_HW_Init();
+
+
+
+    current_command =
+        LIMB_CMD_STOP;
+
+
+
+    timed_mode = 0;
+
+
+    command_start = 0;
+
+
+    command_duration = 0;
+
+
+
+    LIMB_HW_Stop();
+
 }
 
 
 
 /*
- * Apply current command to hardware.
+ *---------------------------------------------------------
+ * Send continuous command
+ *---------------------------------------------------------
  */
-static void LIMBS_ApplyCommand(void)
+
+void LIMBS_Command
+(
+    LimbCommand command
+)
 {
 
-    switch(limb.command)
+    current_command = command;
+
+
+    timed_mode = 0;
+
+}
+
+
+
+/*
+ *---------------------------------------------------------
+ * Send timed command
+ *---------------------------------------------------------
+ */
+
+void LIMBS_CommandTimed
+(
+    LimbCommand command,
+    uint32_t duration_ms
+)
+{
+
+    current_command = command;
+
+
+    command_duration =
+        duration_ms;
+
+
+    command_start =
+        TIMING_GetMillis();
+
+
+
+    timed_mode = 1;
+
+}
+
+
+
+/*
+ *---------------------------------------------------------
+ * Stop
+ *---------------------------------------------------------
+ */
+
+void LIMBS_Stop(void)
+{
+
+    current_command =
+        LIMB_CMD_STOP;
+
+
+    timed_mode = 0;
+
+
+
+    LIMB_HW_Stop();
+
+}
+
+
+
+/*
+ *---------------------------------------------------------
+ * Scheduler update
+ *
+ * Runs every 10ms
+ *---------------------------------------------------------
+ */
+
+void LIMBS_Update(void)
+{
+
+
+    /*
+     * Handle timed movement
+     */
+
+    if(timed_mode)
     {
 
-        case LIMB_FORWARD:
+        if((TIMING_GetMillis()
+            -
+            command_start)
+            >= command_duration)
+        {
 
-            LIMB_HW_Forward(
-                limb.current_speed
-            );
+            LIMBS_Stop();
 
-            break;
+            return;
 
+        }
 
-
-        case LIMB_BACKWARD:
-
-            LIMB_HW_Backward(
-                limb.current_speed
-            );
-
-            break;
+    }
 
 
 
-        case LIMB_LEFT:
+    /*
+     * Apply command
+     */
 
-            LIMB_HW_Left(
-                limb.current_speed
-            );
-
-            break;
-
+    switch(current_command)
+    {
 
 
-        case LIMB_RIGHT:
+        case LIMB_CMD_FORWARD:
 
-            LIMB_HW_Right(
-                limb.current_speed
-            );
+            LIMB_HW_Forward();
 
             break;
 
 
 
-        case LIMB_SPIN_LEFT:
+        case LIMB_CMD_LEFT:
 
-            LIMB_HW_Left(
-                limb.current_speed
-            );
+            LIMB_HW_Left();
 
             break;
 
 
 
-        case LIMB_SPIN_RIGHT:
+        case LIMB_CMD_RIGHT:
 
-            LIMB_HW_Right(
-                limb.current_speed
-            );
+            LIMB_HW_Right();
 
             break;
 
 
 
-        case LIMB_STOP:
+        case LIMB_CMD_STOP:
 
         default:
 
             LIMB_HW_Stop();
 
             break;
-    }
-
-}
-
-
-
-/*
- * Initialize controller
- */
-
-void LIMBS_Init(void)
-{
-    limb.command = LIMB_STOP;
-
-    limb.target_speed = 0;
-
-    limb.current_speed = 0;
-
-    limb.duration = 0;
-
-    limb.elapsed = 0;
-
-
-    LIMB_HW_Init();
-}
-
-
-
-/*
- * Main 10ms update function.
- */
-
-void LIMBS_Update(void)
-{
-
-    /*
-     * Smooth speed change
-     */
-
-    LIMBS_UpdateSpeed();
-
-
-
-    /*
-     * Update motor hardware
-     */
-
-    LIMBS_ApplyCommand();
-
-
-
-    /*
-     * Update timer
-     */
-
-    if(limb.command != LIMB_STOP)
-    {
-
-        limb.elapsed += LIMB_TICK_MS;
-
-
-        if(limb.elapsed >= limb.duration)
-        {
-            LIMBS_Stop();
-        }
 
     }
 
-}
-
-
-
-/*
- * Start movement
- */
-
-void LIMBS_Command
-(
-    LimbCommand command,
-    uint8_t speed,
-    uint32_t time_ms
-)
-{
-
-    limb.command = command;
-
-    limb.target_speed = speed;
-
-    limb.duration = time_ms;
-
-    limb.elapsed = 0;
 
 }
 
 
 
 /*
- * Emergency stop
+ *---------------------------------------------------------
+ * Read current state
+ *---------------------------------------------------------
  */
 
-void LIMBS_Stop(void)
+LimbCommand LIMBS_GetCommand(void)
 {
 
-    limb.command = LIMB_STOP;
-
-    limb.target_speed = 0;
-
-    limb.duration = 0;
-
-    limb.elapsed = 0;
-
-}
-
-
-
-/*
- * Check movement status
- */
-
-uint8_t LIMBS_IsFinished(void)
-{
-
-    return
-    (
-        limb.command == LIMB_STOP
-    );
+    return current_command;
 
 }
