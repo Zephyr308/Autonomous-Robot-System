@@ -1,90 +1,47 @@
-/**
- * @file    head_hw.h
- * @brief   Low-level ultrasonic sensor hardware driver.
- *
- * Hardware:
- *
- * Trigger:
- *      PA4  (GPIO output)
- *
- * Echo:
- *      PB6  (Timer0A Capture Input)
- *
- */
-
 #ifndef HEAD_HW_H_
 #define HEAD_HW_H_
 
 #include <stdint.h>
 
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-
-/*----------------------------------------------------------
- * Hardware pins
- *---------------------------------------------------------*/
-
 #define HEAD_TRIGGER_PIN   (1U << 4)   /* PA4 */
-
 #define HEAD_ECHO_PIN      (1U << 6)   /* PB6 */
-
-
-/*----------------------------------------------------------
- * API
- *---------------------------------------------------------*/
 
 
 /**
  * @brief Initialize ultrasonic hardware.
- *
- * Configures trigger GPIO and echo timer capture.
  */
 void HEAD_HW_Init(void);
 
 
-
 /**
- * @brief Send ultrasonic trigger pulse.
+ * @brief Start a new ultrasonic measurement.
  *
- * Generates approximately 10us trigger pulse.
+ * Generates trigger pulse.
  */
-void HEAD_HW_Trigger(void);
-
+void HEAD_HW_Start(void);
 
 
 /**
- * @brief Check if echo capture occurred.
+ * @brief Check if measurement is complete.
  *
- * @return
- * 1 if capture event available.
- * 0 otherwise.
+ * @return 1 when echo capture finished.
  */
-uint8_t HEAD_HW_EchoReady(void);
-
+uint8_t HEAD_HW_DataReady(void);
 
 
 /**
- * @brief Read captured echo timer value.
+ * @brief Get captured echo time.
  *
- * @return Timer capture timestamp.
+ * @return Echo pulse width in timer ticks.
  */
-uint32_t HEAD_HW_ReadCapture(void);
-
+uint32_t HEAD_HW_GetEchoTime(void);
 
 
 /**
- * @brief Clear timer capture flag.
+ * @brief Clear measurement flag.
  */
-void HEAD_HW_ClearCapture(void);
+void HEAD_HW_ClearData(void);
 
 
-
-#ifdef __cplusplus
-}
 #endif
-
-
-#endif /* HEAD_HW_H_ */
