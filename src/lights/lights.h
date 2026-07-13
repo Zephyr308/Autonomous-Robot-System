@@ -1,93 +1,94 @@
- /**
-  * @file    lights.h
-  * @brief   Interface for RGB LED control.
-  *
-  * This module controls the onboard RGB LEDs connected to:
-  *
-  * PF1 - Red LED
-  * PF2 - Blue LED
-  * PF3 - Green LED
-  */
+/**
+ * @file lights.h
+ * @brief RGB LED control interface.
+ */
+
 
 #ifndef LIGHTS_H_
 #define LIGHTS_H_
 
+
 #include <stdint.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 
-/*----------------------------------------------------------
- * LED Definitions
- *---------------------------------------------------------*/
+/*
+ * RGB LED pins
+ *
+ * TM4C123 LaunchPad
+ */
 
-/** Red LED connected to PF1 */
-#define RED_LED     (1U << 1)
+#define LED_RED       (1U << 1)   /* PF1 */
 
-/** Blue LED connected to PF2 */
-#define BLUE_LED    (1U << 2)
+#define LED_BLUE      (1U << 2)   /* PF2 */
 
-/** Green LED connected to PF3 */
-#define GREEN_LED   (1U << 3)
-
-/** Mask containing all RGB LED pins */
-#define LED_ALL     (RED_LED | BLUE_LED | GREEN_LED)
+#define LED_GREEN     (1U << 3)   /* PF3 */
 
 
-/*----------------------------------------------------------
- * Public API
- *---------------------------------------------------------*/
+
+#define LED_ALL       (LED_RED | LED_BLUE | LED_GREEN)
+
+
 
 /**
- * @brief Initialize RGB LEDs.
- *
- * Configures PF1, PF2, and PF3 as digital GPIO outputs.
+ * @brief Initialize LEDs.
  */
 void LIGHTS_Init(void);
 
 
-/**
- * @brief Turn on selected LEDs.
- *
- * @param led LED mask:
- *            RED_LED, BLUE_LED, GREEN_LED
- */
-void LIGHTS_On(uint8_t led);
-
 
 /**
- * @brief Turn off selected LEDs.
+ * @brief Turn LEDs on/off directly.
  *
- * @param led LED mask:
- *            RED_LED, BLUE_LED, GREEN_LED
+ * @param color LED mask
  */
-void LIGHTS_Off(uint8_t led);
+void LIGHTS_On
+(
+    uint8_t color
+);
+
 
 
 /**
- * @brief Toggle selected LEDs.
- *
- * @param led LED mask:
- *            RED_LED, BLUE_LED, GREEN_LED
+ * @brief Turn LEDs off.
  */
-void LIGHTS_Toggle(uint8_t led);
+void LIGHTS_Off(void);
+
 
 
 /**
- * @brief Set RGB LED output state.
- *
- * Replaces the current LED state with the supplied mask.
- *
- * @param color LED combination using RED_LED,
- *              BLUE_LED, and GREEN_LED.
+ * @brief Toggle LEDs.
  */
-void LIGHTS_Set(uint8_t color);
+void LIGHTS_Toggle
+(
+    uint8_t color
+);
 
 
-#ifdef __cplusplus
-}
-#endif
+
+/**
+ * @brief Set RGB value.
+ *
+ * @param red   0/1
+ * @param green 0/1
+ * @param blue  0/1
+ */
+void LIGHTS_RGB
+(
+    uint8_t red,
+    uint8_t green,
+    uint8_t blue
+);
+
+
+
+/**
+ * @brief Scheduler update.
+ *
+ * Reserved for future animations.
+ */
+void LIGHTS_Update(void);
+
+
 
 #endif /* LIGHTS_H_ */
