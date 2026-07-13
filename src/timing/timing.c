@@ -1,41 +1,18 @@
 /**
  * @file timing.c
- * @brief Cooperative task scheduler.
+ * @brief Cooperative firmware scheduler.
  */
 
 
 #include "TM4C123GH6PM.h"
-
 #include "timing.h"
-
-
-
-/*
- * Maximum firmware tasks.
- *
- * Increase if required.
- */
-
-#define MAX_TASKS     12U
-
-
-
-/*
- * Scheduler task list
- */
-
-static SchedulerTask task_table[MAX_TASKS];
-
-
-
-static uint8_t task_count;
 
 
 
 /*
  * System time counter.
  *
- * Updated by SysTick interrupt.
+ * Updated every 10ms by SysTick ISR.
  */
 
 static volatile uint32_t system_time;
@@ -43,13 +20,33 @@ static volatile uint32_t system_time;
 
 
 /*
+ * Scheduler task table.
+ */
+
+static TimingTask task_table[TIMING_MAX_TASKS];
+
+
+
+/*
+ * Number of registered tasks.
+ */
+
+static uint8_t task_count;
+
+
+
+/*
  *---------------------------------------------------------
- * SysTick initialization
+ * Initialize timing system
  *---------------------------------------------------------
  */
 
 void TIMING_Init(void)
 {
+
+    uint8_t i;
+
+
 
     system_time = 0;
 
@@ -59,7 +56,28 @@ void TIMING_Init(void)
 
 
     /*
-     * 16MHz clock
+     * Clear task table.
+     */
+
+    for(i = 0; i < TIMING_MAX_TASKS; i++)
+    {
+
+        task_table[i].function = 0;
+
+        task_table[i].period = 0;
+
+        task_table[i].last_run = 0;
+
+        task_table[i].enabled = 0;
+
+    }
+
+
+
+    /*
+     * TM4C123 clock:
+     *
+     * 16MHz
      *
      * 10ms tick:
      *
@@ -68,8 +86,9 @@ void TIMING_Init(void)
      * =160000 cycles
      */
 
+
     SysTick->LOAD =
-        160000U - 1U;
+        (160000U - 1U);
 
 
 
@@ -78,14 +97,16 @@ void TIMING_Init(void)
 
 
     /*
-     * Enable interrupt
+     * Clock source:
+     * processor clock
      *
-     * Use processor clock
+     * Interrupt enabled
+     *
      */
 
     SysTick->CTRL =
-        (1U<<2) |
-        (1U<<1);
+        (1U << 2) |
+        (1U << 1);
 
 }
 
@@ -93,7 +114,7 @@ void TIMING_Init(void)
 
 /*
  *---------------------------------------------------------
- * Start scheduler clock
+ * Start scheduler timer
  *---------------------------------------------------------
  */
 
@@ -108,7 +129,9 @@ void TIMING_Start(void)
 
 /*
  *---------------------------------------------------------
- * SysTick interrupt
+ * SysTick Interrupt
+ *
+ * Runs every 10ms
  *---------------------------------------------------------
  */
 
@@ -123,40 +146,25 @@ void SysTick_Handler(void)
 
 /*
  *---------------------------------------------------------
- * Current system time
- *---------------------------------------------------------
- */
-
-uint32_t TIMING_GetMillis(void)
-{
-
-    return system_time;
-
-}
-
-
-
-/*
- *---------------------------------------------------------
- * Add task
+ * Register new task
  *---------------------------------------------------------
  */
 
 uint8_t TIMING_AddTask
 (
-    TaskFunction function,
-    uint32_t period_ms
+    TaskFunction task,
+    uint32_t period
 )
 {
 
-    if(task_count >= MAX_TASKS)
+    if(task_count >= TIMING_MAX_TASKS)
     {
         return 0;
     }
 
 
 
-    if(function == 0)
+    if(task == 0)
     {
         return 0;
     }
@@ -164,15 +172,15 @@ uint8_t TIMING_AddTask
 
 
     task_table[task_count].function =
-        function;
+        task;
 
 
-    task_table[task_count].period_ms =
-        period_ms;
+    task_table[task_count].period =
+        period;
 
 
     task_table[task_count].last_run =
-        0;
+        system_time;
 
 
     task_table[task_count].enabled =
@@ -191,7 +199,9 @@ uint8_t TIMING_AddTask
 
 /*
  *---------------------------------------------------------
- * Run scheduler
+ * Scheduler execution
+ *
+ * Called from main loop
  *---------------------------------------------------------
  */
 
@@ -204,13 +214,13 @@ void TIMING_Run(void)
     uint32_t now;
 
 
+
     now = system_time;
 
 
 
-    for(i=0;i<task_count;i++)
+    for(i = 0; i < task_count; i++)
     {
-
 
         if(task_table[i].enabled == 0)
         {
@@ -220,13 +230,15 @@ void TIMING_Run(void)
 
 
         if((now - task_table[i].last_run)
-            >= task_table[i].period_ms)
+            >= task_table[i].period)
         {
 
+
             /*
-             * Update timestamp before running.
+             * Update before execution.
              *
-             * Prevents timing drift.
+             * Prevents drift if
+             * task execution takes time.
              */
 
             task_table[i].last_run = now;
@@ -237,6 +249,57 @@ void TIMING_Run(void)
 
         }
 
+    }
+
+}
+
+
+
+/*
+ *---------------------------------------------------------
+ * Get uptime
+ *---------------------------------------------------------
+ */
+
+uint32_t TIMING_GetMillis(void)
+{
+
+    return system_time;
+
+}
+
+
+
+/*
+ *---------------------------------------------------------
+ * Enable task
+ *---------------------------------------------------------
+ */
+
+void TIMING_EnableTask(uint8_t id)
+{
+
+    if(id < task_count)
+    {
+        task_table[id].enabled = 1;
+    }
+
+}
+
+
+
+/*
+ *---------------------------------------------------------
+ * Disable task
+ *---------------------------------------------------------
+ */
+
+void TIMING_DisableTask(uint8_t id)
+{
+
+    if(id < task_count)
+    {
+        task_table[id].enabled = 0;
     }
 
 }
