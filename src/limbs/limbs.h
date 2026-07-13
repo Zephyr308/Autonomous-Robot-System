@@ -1,28 +1,79 @@
-#ifndef LIMBS_H__
-#define LIMBS_H__
+/**
+ * @file    limbs.h
+ * @brief   High-level limb movement controller.
+ */
+
+#ifndef LIMBS_H_
+#define LIMBS_H_
 
 #include <stdint.h>
 
-/* Assembly drivers */
+
+typedef enum
+{
+    LIMB_STOP = 0,
+
+    LIMB_FORWARD,
+
+    LIMB_BACKWARD,
+
+    LIMB_LEFT,
+
+    LIMB_RIGHT,
+
+    LIMB_SPIN_LEFT,
+
+    LIMB_SPIN_RIGHT
+
+} LimbCommand;
+
+
+
+/**
+ * @brief Initialize limb controller.
+ */
 void LIMBS_Init(void);
-void FORWARD(void);
-void STOP(void);
-void TURN_Left(void);
-void TURN_Right(void);
 
-/* Non-blocking movement interface */
-typedef enum {MOVE_IDLE, MOVE_FORWARD, TURN_LEFT_STATE, TURN_RIGHT_STATE} MoveState_t;
 
-typedef struct {
-    MoveState_t state;
-    uint32_t ticks_remaining;
-} Motion_t;
 
-extern Motion_t motion;
+/**
+ * @brief Update limb controller.
+ *
+ * Must be called every 10ms.
+ */
+void LIMBS_Update(void);
 
-void move_forward(uint32_t duration_ms);
-void turn_left(uint32_t duration_ms);
-void turn_right(uint32_t duration_ms);
-void update_motion(void);
+
+
+/**
+ * @brief Start a movement command.
+ *
+ * @param command Movement type.
+ * @param speed Speed percentage.
+ * @param time_ms Duration in milliseconds.
+ */
+void LIMBS_Command
+(
+    LimbCommand command,
+    uint8_t speed,
+    uint32_t time_ms
+);
+
+
+
+/**
+ * @brief Immediately stop movement.
+ */
+void LIMBS_Stop(void);
+
+
+
+/**
+ * @brief Check if current movement is finished.
+ *
+ * @return 1 if finished.
+ */
+uint8_t LIMBS_IsFinished(void);
+
 
 #endif
