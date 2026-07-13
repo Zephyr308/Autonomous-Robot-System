@@ -110,3 +110,87 @@ void HEAD_HW_Init(void)
     edgeState = WAIT_RISING;
 
 }
+
+
+void TIMER0A_Handler(void)
+{
+
+    /*
+     * Clear interrupt
+     */
+
+    TIMER0->ICR = (1<<2);
+
+
+
+    if(edgeState == WAIT_RISING)
+    {
+
+        risingEdge = TIMER0->TAR;
+
+
+        edgeState = WAIT_FALLING;
+
+    }
+
+    else
+    {
+
+        fallingEdge = TIMER0->TAR;
+
+
+        dataReady = 1;
+
+
+        edgeState = WAIT_RISING;
+
+    }
+
+}
+
+void HEAD_HW_Start(void)
+{
+
+    dataReady = 0;
+
+
+    GPIOA->DATA &= ~HEAD_TRIGGER_PIN;
+
+
+    /*
+     * temporary 10us pulse
+     * replace with timer later
+     */
+
+    for(volatile int i=0;i<80;i++);
+
+
+    GPIOA->DATA |= HEAD_TRIGGER_PIN;
+
+
+    for(volatile int i=0;i<80;i++);
+
+
+    GPIOA->DATA &= ~HEAD_TRIGGER_PIN;
+
+}
+
+
+uint8_t HEAD_HW_DataReady(void)
+{
+    return dataReady;
+}
+
+
+
+uint32_t HEAD_HW_GetEchoTime(void)
+{
+    return fallingEdge - risingEdge;
+}
+
+
+
+void HEAD_HW_ClearData(void)
+{
+    dataReady = 0;
+}
