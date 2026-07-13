@@ -1,6 +1,11 @@
 /**
  * @file timing.h
- * @brief Cooperative firmware scheduler interface.
+ * @brief Cooperative scheduler and system timing interface.
+ *
+ * Provides:
+ * - 10ms system tick
+ * - Task registration
+ * - Cooperative task execution
  */
 
 
@@ -10,39 +15,54 @@
 #include <stdint.h>
 
 
-
 /*
- * System scheduler tick.
+ * Scheduler heartbeat.
  *
- * All task timing is based on this.
+ * All task periods should be
+ * multiples of this value.
  */
 
-#define SYSTEM_TICK_MS     10U
+#define SYSTEM_TICK_MS      10U
 
 
+
+/*
+ * Maximum number of scheduled tasks.
+ *
+ * Increase if more modules are added.
+ */
+
+#define TIMING_MAX_TASKS    16U
+
+
+
+/*
+ * Task function pointer type.
+ */
 
 typedef void (*TaskFunction)(void);
 
 
 
+/**
+ * @brief Scheduler task structure.
+ */
+
 typedef struct
 {
 
     /*
-     * Function executed by task
+     * Function executed
      */
 
     TaskFunction function;
 
 
-
     /*
-     * Execution period
-     * milliseconds
+     * Execution period in ms
      */
 
-    uint32_t period_ms;
-
+    uint32_t period;
 
 
     /*
@@ -52,60 +72,90 @@ typedef struct
     uint32_t last_run;
 
 
-
     /*
-     * Task enabled flag
+     * Enable/disable task
      */
 
     uint8_t enabled;
 
 
-} SchedulerTask;
-
+} TimingTask;
 
 
 
 /**
- * @brief Initialize system timing.
+ * @brief Initialize SysTick timer.
+ *
+ * Configures a 10ms interrupt tick.
  */
 void TIMING_Init(void);
 
 
 
 /**
- * @brief Start scheduler timer.
+ * @brief Start system tick.
+ *
+ * Enables SysTick counter.
  */
 void TIMING_Start(void);
 
 
 
 /**
- * @brief Execute all scheduled tasks.
+ * @brief Execute scheduler.
  *
- * Called continuously from main loop.
+ * Must be called continuously
+ * from main while loop.
  */
 void TIMING_Run(void);
 
 
 
 /**
+ * @brief Add task to scheduler.
+ *
+ * @param task      Function pointer
+ * @param period    Execution period in ms
+ *
+ * @return
+ * 1 = success
+ * 0 = table full/error
+ */
+uint8_t TIMING_AddTask
+(
+    TaskFunction task,
+    uint32_t period
+);
+
+
+
+/**
  * @brief Get system uptime.
+ *
+ * @return milliseconds since startup.
  */
 uint32_t TIMING_GetMillis(void);
 
 
 
 /**
- * @brief Add task to scheduler.
- *
- * @return 1 success, 0 failure.
+ * @brief Enable task.
  */
-uint8_t TIMING_AddTask
+void TIMING_EnableTask
 (
-    TaskFunction function,
-    uint32_t period_ms
+    uint8_t id
 );
 
 
 
-#endif
+/**
+ * @brief Disable task.
+ */
+void TIMING_DisableTask
+(
+    uint8_t id
+);
+
+
+
+#endif /* TIMING_H_ */
