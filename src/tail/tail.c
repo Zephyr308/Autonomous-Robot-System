@@ -1,57 +1,95 @@
 /**
- * @file    tail.c
- * @brief   Rear IR sensor driver.
- *
- * This module provides initialization and sensing functions for the
- * rear infrared (IR) sensor connected to GPIO Port A Pin 5 (PA5).
+ * @file tail.c
+ * @brief Rear IR sensor driver.
  */
+
 
 #include "TM4C123GH6PM.h"
+
 #include "tail.h"
 
-/**
- * @brief Initialize the rear IR sensor.
- *
- * Configures PA5 as a digital GPIO input.
+
+
+/*
+ *---------------------------------------------------------
+ * Initialize PA5 as digital input
+ *---------------------------------------------------------
  */
+
 void TAIL_Init(void)
 {
-    /*----------------------------------------------------------
-     * Enable clock for GPIO Port A
-     *---------------------------------------------------------*/
-    SYSCTL->RCGCGPIO |= (1U << 0);
 
-    /* Allow time for the peripheral clock to stabilize */
+    /*
+     * Enable GPIO Port A clock
+     */
+
+    SYSCTL->RCGCGPIO |=
+        (1U << 0);
+
+
+
+    /*
+     * Wait for peripheral ready
+     */
+
     (void)SYSCTL->RCGCGPIO;
 
-    /*----------------------------------------------------------
-     * Configure PA5 as a GPIO input
-     *---------------------------------------------------------*/
 
-    /* Disable alternate function */
-    GPIOA->AFSEL &= ~IR_PIN;
 
-    /* Select GPIO function */
-    GPIOA->PCTL &= ~(0xFU << 20);
+    /*
+     * Disable alternate function
+     */
 
-    /* Disable analog mode */
-    GPIOA->AMSEL &= ~IR_PIN;
+    GPIOA->AFSEL &=
+        ~TAIL_IR_PIN;
 
-    /* Configure as input */
-    GPIOA->DIR &= ~IR_PIN;
 
-    /* Enable digital function */
-    GPIOA->DEN |= IR_PIN;
+
+    /*
+     * Disable analog mode
+     */
+
+    GPIOA->AMSEL &=
+        ~TAIL_IR_PIN;
+
+
+
+    /*
+     * Configure input
+     */
+
+    GPIOA->DIR &=
+        ~TAIL_IR_PIN;
+
+
+
+    /*
+     * Enable digital input
+     */
+
+    GPIOA->DEN |=
+        TAIL_IR_PIN;
+
+
 }
 
-/**
- * @brief Read the rear IR sensor.
- *
- * @return
- * - IR_PIN (0x20) if PA5 is HIGH.
- * - 0x00 if PA5 is LOW.
+
+
+/*
+ *---------------------------------------------------------
+ * Read IR sensor
+ *---------------------------------------------------------
  */
-uint32_t TAIL_sense(void)
+
+uint8_t TAIL_Read(void)
 {
-    return (GPIOA->DATA & IR_PIN);
+
+    if(GPIOA->DATA & TAIL_IR_PIN)
+    {
+        return 1U;
+    }
+
+
+    return 0U;
+
 }
