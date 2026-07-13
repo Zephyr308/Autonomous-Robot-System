@@ -1,10 +1,13 @@
 /**
  * @file    tail.h
- * @brief   Interface for the rear IR sensor (tail sensor).
+ * @brief   Rear IR sensor (tail sensor) interface.
  *
- * This module provides functions to initialize the rear infrared
- * sensor connected to GPIO Port A Pin 5 (PA5) and to read its
- * current logic state.
+ * This module provides initialization and sensing functions for the
+ * rear infrared (IR) sensor connected to GPIO Port A Pin 5 (PA5).
+ *
+ * Implementation:
+ *  - Current : tail.c (Embedded C)
+ *  - Legacy  : tail.s (Assembly, retained for reference)
  */
 
 #ifndef TAIL_H_
@@ -16,24 +19,38 @@
 extern "C" {
 #endif
 
-/**
- * @brief GPIO pin connected to the rear IR sensor.
- */
-#define IR_PIN    (1U << 5U)    /**< PA5 */
+/*----------------------------------------------------------
+ * Hardware Configuration
+ *---------------------------------------------------------*/
+
+/** GPIO pin connected to the rear IR sensor (PA5). */
+#define IR_PIN    (1U << 5)
+
+/*----------------------------------------------------------
+ * Public API
+ *---------------------------------------------------------*/
 
 /**
  * @brief Initialize the rear IR sensor.
  *
- * Configures PA5 as a digital GPIO input for reading the sensor.
+ * Configures PA5 as a digital GPIO input.
  */
 void TAIL_Init(void);
 
 /**
- * @brief Read the rear IR sensor state.
+ * @brief Read the current state of the rear IR sensor.
  *
- * @return Returns the state of PA5:
- * - `0x20` (IR_PIN) if the sensor output is HIGH.
- * - `0x00` if the sensor output is LOW.
+ * @return Sensor state:
+ * - #IR_PIN if PA5 is HIGH.
+ * - 0 if PA5 is LOW.
+ *
+ * Example:
+ * @code
+ * if (TAIL_sense())
+ * {
+ *     // Sensor active
+ * }
+ * @endcode
  */
 uint32_t TAIL_sense(void);
 
